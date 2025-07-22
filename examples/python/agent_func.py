@@ -31,6 +31,7 @@ async def step(observation, action, label, **kwargs) -> Dict[str, Any]:
     
     match = kwargs.get("match", None)
     idx = kwargs.get("step_idx", 0)
+    reward = 0
 
     try:
         if isinstance(observation, str):
@@ -44,34 +45,36 @@ async def step(observation, action, label, **kwargs) -> Dict[str, Any]:
         
         print(f"Agent reasoning: {reasoning}")
         print(f"Agent action: {answer}")
+
+        info = await match.adjudicate({'player_0': answer})
+        previous_play = match.players[1].history[-1] if match and match.players[1].history else None
+        scores = info.get("scores", None) if match else None
+        
+        next_observation = f"""In the previous round (round {idx}), the other player chose {previous_play}. 
+        The score for this round is {scores[-1] if scores else 0}, 
+        the cumulative score is {match.final_score() if match else 0}."""
+
+        reward = scores[-1]
         
     except json.JSONDecodeError as e:
         print(f"Failed to parse JSON observation: {e}")
         # Handle fallback case
-        answer = "C"  # default action
-        reasoning = "Failed to parse response"
+        next_observation="Failed to parse JSON observation. Please output in the right JSON format."
+        reward = -5
         
     except ValueError as e:
         print(f"Invalid response format: {e}")
         # Handle validation errors
-        answer = "C"  # default action
-        reasoning = "Invalid response format"
-
-    if match is not None:
-        info = await match.adjudicate({'player_0': answer})
-
-    previous_play = match.players[1].history[-1] if match.players[1].history else None
-    scores = info.get("scores", None) if match else None
+        next_observation="Invalid response format. Please output in the right JSON format"
+        reward = -5
     
-    next_observation = f"In the previous round (round {idx}), the other player chose {previous_play}. The score for this round is {scores[-1]}, the cumulative score is {match.final_score()}."
-    reward = 1.0
+    done = False # pretty useless in this code but may be useful later. keep.
 
     return {
         "rewards": reward,  # Rewards for advantage calculation
         "scores": reward,  # Scores for dynamic filtering (0-1 reward)
         "next_observation": next_observation,  # The updated observation for vLLM inference in next step
         "done": done,  # Boolean indicating if the episode is complete
-        "sampling_params": kwargs.get("sampling_params", None),  # Parameters for vLLM sampling in next step
         "extra_logs": {"dummy_scores": reward, "reasoning": reasoning, "parsed_answer": answer},  # Additional logging information
         "match": match,
     }
