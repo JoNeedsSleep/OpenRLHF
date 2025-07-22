@@ -1,6 +1,11 @@
 import asyncio
 import os
 
+# Add Axelrod to the path
+import sys
+sys.path.append("/net/scratch2/machiavellm/Axelrod/axelrod")
+import axelrod as axl
+
 import ray
 
 from .vllm_engine import BaseLLMRayActor
@@ -100,6 +105,37 @@ class LLMRayActorAsync(BaseLLMRayActor):
                 action_ranges = []
                 total_reward = 0
                 final_scores = 0
+                max_steps = 10
+
+                # Initialize Axelrod players
+                import sys
+                import time
+                start = time.time()
+                sys.path.append("/net/scratch2/machiavellm/Axelrod/axelrod")
+
+                import asyncio
+                from axelrod.strategies.grudger import ForgetfulGrudger
+                from axelrod.strategies.lookerup import EvolvedLookerUp2_2_2
+                from axelrod.strategies.finite_state_machines import EvolvedFSM16
+                from axelrod.strategies.hmm import EvolvedHMM5
+                from axelrod.strategies.defector   import Defector
+                from axelrod.strategies.human import Human
+                from axelrod.match import AsyncMatch
+                from axelrod.game import Game
+                print(f"Import took: {time.time() - start:.2f} seconds")
+
+                game = axl.Game(r=3, s=-2, t=5, p=0) # this one is very tempting
+                noise_level = 0.05
+    
+                match = axl.AsyncMatch(
+                    [Human(), EvolvedHMM5()], 
+                    turns=max_steps, 
+                    game=game,
+                    noise=noise_level,  # Add noise to the match
+                    seed=42  # Add seed for reproducibility
+                )
+
+                await match.start_match()
 
                 # Execute multiple steps of interaction
                 for step_idx in range(max_steps):
@@ -119,13 +155,20 @@ class LLMRayActorAsync(BaseLLMRayActor):
 
                     # Call step function to get reward and next observation
                     # Use asyncio.to_thread to make Ray remote call non-blocking
-                    kwargs = {"sampling_params": sampling_params}
+                    kwargs = {"sampling_params": sampling_params, 
+                    "max_rounds": max_steps, 
+                    "step_idx": step_idx,
+                    "match": match}
+
                     result = await agent_instance.step.remote(observation, action, label, **kwargs)
                     total_reward += result["rewards"].item()
                     final_scores = result.get("scores", total_reward)
                     observation = result["next_observation"]
                     done = result["done"]
                     extra_logs = result.get("extra_logs", {})
+                    
+                    # Update match
+                    match = result.get("match", None)
 
                     # Get sampling params from the environment step
                     if result.get("sampling_params", None):
@@ -133,7 +176,8 @@ class LLMRayActorAsync(BaseLLMRayActor):
 
                     if done:
                         break
-
+                print(f"Match final score: {match.final_score()}")
+                print(match.sparklines())
                 ray.kill(agent_instance)
 
                 # Store the final response when agent execution is complete
