@@ -3,6 +3,7 @@ from datetime import datetime
 
 import ray
 from ray.util.placement_group import placement_group
+from vllm import GuidedDecodingParams
 
 from openrlhf.trainer.ray import create_vllm_engines
 from openrlhf.trainer.ray.launcher import (
@@ -14,6 +15,10 @@ from openrlhf.trainer.ray.ppo_actor import PolicyModelActor
 from openrlhf.trainer.ray.ppo_critic import CriticModelActor
 from openrlhf.utils import get_strategy
 
+import os, pathlib, transformers.dynamic_module_utils as dmu
+print("HOME           =", pathlib.Path.home())
+print("ENV var        =", os.getenv("HF_MODULES_CACHE"))
+print("Constant value =", dmu.HF_MODULES_CACHE)
 
 def train(args):
     # initialize ray if not initialized
@@ -157,6 +162,7 @@ def train(args):
         max_length=args.max_len,
         temperature=args.temperature,
         top_p=args.top_p,
+        guided_decoding_params=args.guided_decoding_params,
     )
     # training update steps
     max_steps = ray.get(ppo_trainer.get_max_steps.remote())
@@ -448,6 +454,7 @@ if __name__ == "__main__":
 
     # ModelScope parameters
     parser.add_argument("--use_ms", action="store_true", default=False)
+    parser.add_argument("--guided_decoding_params", type=GuidedDecodingParams, default=None, help="GuidedDecodingParams object name from agent function for vLLM guided decoding.")
 
     args = parser.parse_args()
 

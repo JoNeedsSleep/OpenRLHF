@@ -12,9 +12,20 @@ class SamplesGeneratorAsync(SamplesGenerator):
 
     def _generate_vllm(self, all_prompts: List[str], all_labels, **kwargs) -> List[Experience]:
         from vllm import SamplingParams
+        try:
+            # GuidedDecodingParams is available in vLLM ≥0.4
+            from vllm import GuidedDecodingParams  # type: ignore
+        except ImportError:
+            GuidedDecodingParams = None  # fallback if the installed vLLM is old
 
         llms = self.vllm_engines
         args = self.strategy.args
+
+        # Build guided decoding parameter if JSON schema is provided
+        guided_params = None
+        json_schema = kwargs.get("json_schema")
+        if json_schema is not None and GuidedDecodingParams is not None:
+            guided_params = GuidedDecodingParams(json=json_schema)
 
         sampling_params = SamplingParams(
             temperature=kwargs.get("temperature", 1.0),
@@ -23,6 +34,7 @@ class SamplesGeneratorAsync(SamplesGenerator):
             max_tokens=kwargs.get("max_new_tokens", 1024),
             min_tokens=kwargs.get("min_new_tokens", 1),
             skip_special_tokens=kwargs.get("skip_special_tokens", False),
+            guided_decoding_params=kwargs.get("guided_decoding_params", None),
         )
         truncate_length = self.prompt_max_len + kwargs.get("max_new_tokens", 1024)
 
