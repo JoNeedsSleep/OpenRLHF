@@ -124,8 +124,8 @@ class LLMRayActorAsync(BaseLLMRayActor):
                 from axelrod.game import Game
                 print(f"Import took: {time.time() - start:.2f} seconds")
 
-                game = axl.Game(r=3, s=-2, t=5, p=0) # this one is very tempting
-                noise_level = 0.05
+                game = axl.Game(r=4, s=-2, t=5, p=-1) # remember 2r > t + s
+                noise_level = 0.1
     
                 match = axl.AsyncMatch(
                     [Human(), EvolvedHMM5()], 
@@ -167,18 +167,19 @@ class LLMRayActorAsync(BaseLLMRayActor):
                     done = result["done"]
                     extra_logs = result.get("extra_logs", {})
                     
-                    # Update match
+                    # Update IPD match
                     match = result.get("match", None)
-
-                    # Get sampling params from the environment step
-                    if result.get("sampling_params", None):
-                        sampling_params = result["sampling_params"]
 
                     if done:
                         break
                 print(f"Match final score: {match.final_score()}")
                 print(match.sparklines())
                 ray.kill(agent_instance)
+
+                def normalize(total_reward, n, eps=0.4, r=4, s=-2, t=5, p=-1):  
+                    return (total_reward - 20) / 20 #dummy normalization for now.
+                total_reward = normalize(total_reward, max_steps)
+                final_scores = normalize(final_scores, max_steps)
 
                 # Store the final response when agent execution is complete
                 final_response = {

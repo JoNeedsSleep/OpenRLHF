@@ -297,9 +297,20 @@ class SamplesGenerator:
             List of Experience objects containing generated samples
         """
         from vllm import SamplingParams
+        from vllm.sampling_params import GuidedDecodingParams
+
+        try:
+            from vllm import GuidedDecodingParams  # type: ignore
+        except ImportError:
+            GuidedDecodingParams = None
 
         llms = self.vllm_engines
         args = self.strategy.args
+
+        guided_params = None
+        json_schema = kwargs.get("json_schema")
+        if json_schema is not None and GuidedDecodingParams is not None:
+            guided_params = GuidedDecodingParams(json=json_schema)
 
         # Set up sampling parameters
         sampling_params = SamplingParams(
@@ -310,6 +321,7 @@ class SamplesGenerator:
             min_tokens=kwargs.get("min_new_tokens", 1),
             skip_special_tokens=kwargs.get("skip_special_tokens", False),
             include_stop_str_in_output=True,
+            guided_decoding=guided_params,
         )
         max_response_length = kwargs.get("max_new_tokens", 1024)
         truncate_length = self.prompt_max_len + max_response_length

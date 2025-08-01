@@ -12,6 +12,7 @@ class SamplesGeneratorAsync(SamplesGenerator):
 
     def _generate_vllm(self, all_prompts: List[str], all_labels, **kwargs) -> List[Experience]:
         from vllm import SamplingParams
+        from vllm.sampling_params import GuidedDecodingParams
         try:
             # GuidedDecodingParams is available in vLLM ≥0.4
             from vllm import GuidedDecodingParams  # type: ignore
@@ -34,7 +35,7 @@ class SamplesGeneratorAsync(SamplesGenerator):
             max_tokens=kwargs.get("max_new_tokens", 1024),
             min_tokens=kwargs.get("min_new_tokens", 1),
             skip_special_tokens=kwargs.get("skip_special_tokens", False),
-            guided_decoding_params=kwargs.get("guided_decoding_params", None),
+            guided_decoding=kwargs.get("guided_decoding_params", None),
         )
         truncate_length = self.prompt_max_len + kwargs.get("max_new_tokens", 1024)
 
@@ -137,9 +138,9 @@ class SamplesGeneratorAsync(SamplesGenerator):
             }
 
             # Process extra_logs
-            extra_logs = output.get("extra_logs", {})
-            for key, value in extra_logs.items():
-                info[key] = torch.tensor([value.item()])
+            # extra_logs = output.get("extra_logs", {})
+            # for key, value in extra_logs.items():
+            #    info[key] = torch.tensor([value.item()])
 
             experience = Experience(
                 sequences=sequences.unsqueeze(0),

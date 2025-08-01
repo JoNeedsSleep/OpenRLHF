@@ -3,7 +3,7 @@ from datetime import datetime
 
 import ray
 from ray.util.placement_group import placement_group
-from vllm import GuidedDecodingParams
+from vllm.sampling_params import GuidedDecodingParams
 
 from openrlhf.trainer.ray import create_vllm_engines
 from openrlhf.trainer.ray.launcher import (
